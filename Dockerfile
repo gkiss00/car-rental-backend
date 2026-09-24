@@ -18,7 +18,10 @@ WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
 
-# Render injects PORT at runtime; application.yml reads it via ${PORT:8080}.
+# Render/Railway inject PORT at runtime; application.yml reads it via ${PORT:8080}.
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Java 11+'s default TLS 1.3 handshake is mishandled by MongoDB Atlas's shared-tier
+# TLS-routing proxy from some hosting platforms, causing a "fatal alert: internal_error".
+# Forcing TLS 1.2 is MongoDB's own documented workaround.
+ENTRYPOINT ["java", "-Djdk.tls.client.protocols=TLSv1.2", "-jar", "app.jar"]

@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/ping").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/cars", "/api/cars/{id}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/insurances", "/api/insurances/{id}").permitAll()

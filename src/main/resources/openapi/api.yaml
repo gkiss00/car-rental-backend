@@ -1,0 +1,2266 @@
+openapi: 3.0.3
+info:
+  title: Car Rental API
+  description: Backend API for the car rental application.
+  version: 1.0.0
+
+servers:
+  - url: /
+
+paths:
+  /api/ping:
+    get:
+      tags:
+        - Ping
+      operationId: ping
+      summary: Health check endpoint used to verify the API is reachable.
+      responses:
+        "200":
+          description: The API is up and running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+
+  /api/auth/signup:
+    post:
+      tags:
+        - Auth
+      operationId: signup
+      summary: Register a new user or car dealership account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: Account created, returns an access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An account already exists for this email.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/signin:
+    post:
+      tags:
+        - Auth
+      operationId: signin
+      summary: Authenticate with email and password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SigninRequest"
+      responses:
+        "200":
+          description: Authentication successful, returns an access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid email or password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/users:
+    get:
+      tags:
+        - Users
+      operationId: listUsers
+      summary: List all user accounts, optionally searching by name or email. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          description: Case-insensitive partial match against first name, last name, or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of user accounts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Users
+      operationId: createUser
+      summary: Create a new user account. Admins may create any role; dealership accounts may only create USER or DEALERSHIP accounts.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin or dealership account, or a dealership account attempting to create an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An account already exists for this email.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/users/me:
+    get:
+      tags:
+        - Users
+      operationId: getCurrentUser
+      summary: Return the profile of the currently authenticated user.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The current user's profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/users/me/password:
+    put:
+      tags:
+        - Users
+      operationId: changePassword
+      summary: Change the current user's own password.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "204":
+          description: Password changed.
+        "400":
+          description: Validation error, or the current password is incorrect.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/cars:
+    get:
+      tags:
+        - Cars
+      operationId: listCars
+      summary: Search available car listings. Public, paginated.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: companyId
+          in: query
+          description: Return only cars belonging to this company.
+          schema:
+            type: string
+        - name: make
+          in: query
+          schema:
+            type: string
+        - name: model
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            $ref: "#/components/schemas/CarCategory"
+        - name: transmission
+          in: query
+          schema:
+            $ref: "#/components/schemas/TransmissionType"
+        - name: fuelType
+          in: query
+          schema:
+            $ref: "#/components/schemas/FuelType"
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+            format: double
+            minimum: 0
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+            format: double
+            minimum: 0
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: country
+          in: query
+          schema:
+            type: string
+        - name: availableFrom
+          in: query
+          description: >
+            Only return cars with no reservation conflicting with [availableFrom, availableUntil)
+            (a 2-hour buffer is applied around existing reservations, same rule as reservation
+            creation). Must be provided together with availableUntil.
+          schema:
+            type: string
+            format: date-time
+        - name: availableUntil
+          in: query
+          description: See availableFrom. Must be after availableFrom.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: A page of car listings matching the search criteria.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarPage"
+        "400":
+          description: >
+            Invalid pagination or filter parameters, or availableFrom/availableUntil were not
+            provided together, or availableUntil is not after availableFrom.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Cars
+      operationId: registerCar
+      summary: Register a new car listing. Restricted to dealership accounts.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarRegistrationRequest"
+      responses:
+        "201":
+          description: Car registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not a dealership account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A car with this VIN is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/cars/mine:
+    get:
+      tags:
+        - Cars
+      operationId: listMyCars
+      summary: List the cars registered by the currently authenticated dealership.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of the dealership's car listings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarPage"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not a dealership account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/cars/{id}:
+    get:
+      tags:
+        - Cars
+      operationId: getCarById
+      summary: Get the details of a single car listing. Public.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The car listing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarResponse"
+        "404":
+          description: No car exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Cars
+      operationId: updateCar
+      summary: Update a car listing. Admins may update any car; dealership accounts may only update a car belonging to their own company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarUpdateRequest"
+      responses:
+        "200":
+          description: Car updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin, or a dealership account whose company does not own this car.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No car exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Cars
+      operationId: deleteCar
+      summary: >
+        Delete a car. Admins may delete any car; dealership accounts may only delete a car
+        belonging to their own company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Car deleted.
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin, or a dealership account whose company does not own this car.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No car exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/companies:
+    get:
+      tags:
+        - Companies
+      operationId: listCompanies
+      summary: List car rental companies as a lightweight overview. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of company overviews.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyPage"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Companies
+      operationId: createCompany
+      summary: Create a car rental company. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyRegistrationRequest"
+      responses:
+        "201":
+          description: Company created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyResponse"
+        "400":
+          description: Validation error, or one of the user ids does not reference an existing user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A company with this registration number is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/companies/{id}:
+    get:
+      tags:
+        - Companies
+      operationId: getCompanyById
+      summary: Get the full details of a single company. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No company exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags:
+        - Companies
+      operationId: updateCompany
+      summary: Partially update a company. Restricted to admin accounts. Only fields present in the request body are changed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdateRequest"
+      responses:
+        "200":
+          description: Company updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyResponse"
+        "400":
+          description: Validation error, or one of the user ids does not reference an existing user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No company exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A company with this registration number is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/companies/{id}/users/{userId}:
+    put:
+      tags:
+        - Companies
+      operationId: addUserToCompany
+      summary: >
+        Add an existing user to a company. Restricted to admin accounts. Idempotent — adding a user
+        already in the company is a no-op. If the user currently belongs to a different company, they
+        are moved (removed from the old company's user list).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The updated company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyResponse"
+        "400":
+          description: The user is an admin account and cannot be attached to a company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No company or no user exists with the given id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Companies
+      operationId: removeUserFromCompany
+      summary: >
+        Remove a user from a company. Restricted to admin accounts. Idempotent — removing a user who
+        isn't currently a member of the company is a no-op.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The updated company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No company or no user exists with the given id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/car-types:
+    get:
+      tags:
+        - CarTypes
+      operationId: listCarTypes
+      summary: List all car types. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of car types.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarTypePage"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - CarTypes
+      operationId: createCarType
+      summary: >
+        Create a car type. Restricted to admin accounts. The response includes a presigned URL
+        the frontend can use to upload the preview image directly to storage.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarTypeRequest"
+      responses:
+        "201":
+          description: Car type created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarTypeCreationResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A car type with this make and model already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/car-types/{id}:
+    delete:
+      tags:
+        - CarTypes
+      operationId: deleteCarType
+      summary: Delete a car type. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Car type deleted.
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No car type exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/reservations:
+    post:
+      tags:
+        - Reservations
+      operationId: createReservation
+      summary: >
+        Create a reservation for a car. Admins may reserve any car; dealership or user accounts
+        may only reserve a car belonging to their own company.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationRequest"
+      responses:
+        "201":
+          description: Reservation created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationResponse"
+        "400":
+          description: Validation error, or endTime is not after startTime.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: This car does not belong to the caller's company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No car exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >
+            This car already has a reservation that overlaps, or is within 2 hours of, the
+            requested time window.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/reservations/{id}:
+    get:
+      tags:
+        - Reservations
+      operationId: getReservationById
+      summary: >
+        Get the details of a reservation. Admins may view any reservation; dealership or user
+        accounts may only view a reservation for a car belonging to their own company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The reservation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: This reservation's car does not belong to the caller's company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No reservation exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Reservations
+      operationId: updateReservation
+      summary: >
+        Update a reservation. Admins may update any reservation; dealership or user accounts may
+        only update a reservation for a car belonging to their own company. The full reservation
+        (including carId) is replaced, and moving a reservation to a different car requires access
+        to that car too.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationRequest"
+      responses:
+        "200":
+          description: Reservation updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationResponse"
+        "400":
+          description: Validation error, or endTime is not after startTime.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: >
+            This reservation's car, or the target car, does not belong to the caller's company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No reservation or no car exists with the given id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >
+            The target car already has a reservation that overlaps, or is within 2 hours of, the
+            requested time window.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Reservations
+      operationId: deleteReservation
+      summary: >
+        Delete a reservation. Admins may delete any reservation; dealership or user accounts may
+        only delete a reservation for a car belonging to their own company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Reservation deleted.
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: This reservation's car does not belong to the caller's company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No reservation exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/cars/{carId}/reservations:
+    get:
+      tags:
+        - Reservations
+      operationId: listReservationsForCar
+      summary: >
+        List all reservations for a car. Admins may view any car's reservations; dealership or
+        user accounts may only view reservations for a car belonging to their own company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: carId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of reservations for the car.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationPage"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: This car does not belong to the caller's company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No car exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/companies/{companyId}/reservations:
+    get:
+      tags:
+        - Reservations
+      operationId: listReservationsForCompany
+      summary: >
+        List all reservations for a company's cars. Admins may view any company's reservations;
+        dealership or user accounts may only view reservations for their own company.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of reservations across the company's cars.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationPage"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: This company is not the caller's own.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No company exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/insurances:
+    get:
+      tags:
+        - Insurances
+      operationId: listInsurances
+      summary: List all insurance tiers. Public.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of insurance tiers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsurancePage"
+    post:
+      tags:
+        - Insurances
+      operationId: createInsurance
+      summary: Create an insurance tier. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsuranceRequest"
+      responses:
+        "201":
+          description: Insurance created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsuranceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An insurance with this name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/insurances/{id}:
+    get:
+      tags:
+        - Insurances
+      operationId: getInsuranceById
+      summary: Get the details of an insurance tier. Public.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The insurance tier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsuranceResponse"
+        "404":
+          description: No insurance exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Insurances
+      operationId: updateInsurance
+      summary: Update an insurance tier. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsuranceRequest"
+      responses:
+        "200":
+          description: Insurance updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsuranceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No insurance exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Another insurance with this name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Insurances
+      operationId: deleteInsurance
+      summary: Delete an insurance tier. Restricted to admin accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Insurance deleted.
+        "401":
+          description: Missing or invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but not an admin account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No insurance exists with this id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    PingResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          example: UP
+        timestamp:
+          type: string
+          format: date-time
+
+    RegistrableRole:
+      type: string
+      description: Roles that a user may pick for themselves at signup. Admin accounts are provisioned separately.
+      enum:
+        - USER
+        - DEALERSHIP
+
+    UserRole:
+      type: string
+      description: All roles a user account can have.
+      enum:
+        - USER
+        - DEALERSHIP
+        - ADMIN
+
+    SignupRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        role:
+          $ref: "#/components/schemas/RegistrableRole"
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+        - newPasswordConfirmation
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+        newPasswordConfirmation:
+          type: string
+          format: password
+          minLength: 8
+
+    CreateUserRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        role:
+          $ref: "#/components/schemas/UserRole"
+        companyId:
+          type: string
+          description: >
+            Company to attach this user to. Required when an admin creates a USER or DEALERSHIP account
+            (rejected as missing otherwise). Ignored when a dealership account creates the user: the new
+            user is always attached to the caller's own company instead. Not used when creating an ADMIN account.
+
+    SigninRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    AuthResponse:
+      type: object
+      required:
+        - accessToken
+        - tokenType
+        - expiresIn
+        - email
+        - role
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Number of seconds until the access token expires.
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/UserRole"
+
+    UserProfileResponse:
+      type: object
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - role
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        companyId:
+          type: string
+
+    UserPage:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserProfileResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+        - timestamp
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    CarCategory:
+      type: string
+      enum:
+        - SEDAN
+        - SUV
+        - HATCHBACK
+        - COUPE
+        - CONVERTIBLE
+        - MINIVAN
+        - PICKUP
+        - VAN
+
+    TransmissionType:
+      type: string
+      enum:
+        - MANUAL
+        - AUTOMATIC
+
+    FuelType:
+      type: string
+      enum:
+        - PETROL
+        - DIESEL
+        - ELECTRIC
+        - HYBRID
+        - LPG
+
+    CarStatus:
+      type: string
+      description: Listing status, controlled by the dealership.
+      enum:
+        - AVAILABLE
+        - RENTED
+        - MAINTENANCE
+        - UNLISTED
+
+    CarLocation:
+      type: object
+      required:
+        - city
+        - country
+      properties:
+        city:
+          type: string
+          minLength: 1
+        country:
+          type: string
+          minLength: 1
+
+    CarRegistrationRequest:
+      type: object
+      required:
+        - make
+        - model
+        - year
+        - category
+        - transmission
+        - fuelType
+        - seats
+        - mileageKm
+        - dailyPriceAmount
+        - location
+      properties:
+        companyId:
+          type: string
+          description: >
+            Company to register this car for. Required when an admin registers the car. Ignored when a
+            dealership registers their own car — the car is instead attached to the dealership's own company.
+        vin:
+          type: string
+          maxLength: 17
+        licensePlate:
+          type: string
+          maxLength: 20
+        make:
+          type: string
+          minLength: 1
+          description: Must match an existing CarType together with model.
+        model:
+          type: string
+          minLength: 1
+          description: Must match an existing CarType together with make.
+        year:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+        category:
+          $ref: "#/components/schemas/CarCategory"
+        transmission:
+          $ref: "#/components/schemas/TransmissionType"
+        fuelType:
+          $ref: "#/components/schemas/FuelType"
+        seats:
+          type: integer
+          minimum: 1
+          maximum: 20
+        doors:
+          type: integer
+          minimum: 1
+          maximum: 6
+        color:
+          type: string
+        mileageKm:
+          type: integer
+          minimum: 0
+        dailyPriceAmount:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+        dailyPriceCurrency:
+          type: string
+          default: EUR
+        location:
+          $ref: "#/components/schemas/CarLocation"
+        features:
+          type: array
+          items:
+            type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+          maxLength: 2000
+
+    CarUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/CarRegistrationRequest"
+        - type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/CarStatus"
+
+    CarResponse:
+      type: object
+      required:
+        - id
+        - companyId
+        - make
+        - model
+        - year
+        - category
+        - transmission
+        - fuelType
+        - seats
+        - mileageKm
+        - dailyPriceAmount
+        - dailyPriceCurrency
+        - status
+        - location
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        companyId:
+          type: string
+          description: >
+            The company this car belongs to — set by the dealership's own company when a dealership
+            registers the car, or by the admin-supplied companyId when an admin registers it.
+        vin:
+          type: string
+        licensePlate:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: integer
+        category:
+          $ref: "#/components/schemas/CarCategory"
+        transmission:
+          $ref: "#/components/schemas/TransmissionType"
+        fuelType:
+          $ref: "#/components/schemas/FuelType"
+        seats:
+          type: integer
+        doors:
+          type: integer
+        color:
+          type: string
+        mileageKm:
+          type: integer
+        dailyPriceAmount:
+          type: number
+          format: double
+        dailyPriceCurrency:
+          type: string
+        status:
+          $ref: "#/components/schemas/CarStatus"
+        location:
+          $ref: "#/components/schemas/CarLocation"
+        features:
+          type: array
+          items:
+            type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CompanyStatus:
+      type: string
+      description: Verification status, controlled by admins.
+      enum:
+        - PENDING_VERIFICATION
+        - ACTIVE
+        - SUSPENDED
+
+    CompanyAddress:
+      type: object
+      required:
+        - street
+        - city
+        - country
+      properties:
+        street:
+          type: string
+          minLength: 1
+        city:
+          type: string
+          minLength: 1
+        postalCode:
+          type: string
+        country:
+          type: string
+          minLength: 1
+
+    CompanyRegistrationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+          description: User ids attached to this company. May be omitted, null, or empty.
+        name:
+          type: string
+          minLength: 1
+        registrationNumber:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+          maxLength: 30
+        address:
+          $ref: "#/components/schemas/CompanyAddress"
+        website:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        logoUrl:
+          type: string
+
+    CompanyUpdateRequest:
+      type: object
+      description: Partial update — only properties present in the request body are changed.
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+          description: Replaces the current user list when present.
+        name:
+          type: string
+          minLength: 1
+        registrationNumber:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+          maxLength: 30
+        address:
+          $ref: "#/components/schemas/CompanyAddress"
+        website:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        logoUrl:
+          type: string
+        status:
+          $ref: "#/components/schemas/CompanyStatus"
+
+    CompanyResponse:
+      type: object
+      required:
+        - id
+        - users
+        - name
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserProfileResponse"
+          description: Full profile of every user attached to this company.
+        name:
+          type: string
+        registrationNumber:
+          type: string
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+        address:
+          $ref: "#/components/schemas/CompanyAddress"
+        website:
+          type: string
+        description:
+          type: string
+        logoUrl:
+          type: string
+        status:
+          $ref: "#/components/schemas/CompanyStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CompanySummaryResponse:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        logoUrl:
+          type: string
+        status:
+          $ref: "#/components/schemas/CompanyStatus"
+        createdAt:
+          type: string
+          format: date-time
+
+    CompanyPage:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanySummaryResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    CarPage:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/CarResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    CarTypeRequest:
+      type: object
+      required:
+        - make
+        - model
+      properties:
+        make:
+          type: string
+          minLength: 1
+        model:
+          type: string
+          minLength: 1
+
+    CarTypeResponse:
+      type: object
+      required:
+        - id
+        - make
+        - model
+        - previewUrl
+      properties:
+        id:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        previewUrl:
+          type: string
+          description: >
+            Public URL where the preview image will be served from once uploaded. Set immediately
+            at creation time, before the image is actually uploaded.
+
+    CarTypeCreationResponse:
+      type: object
+      required:
+        - carType
+        - previewUploadUrl
+      properties:
+        carType:
+          $ref: "#/components/schemas/CarTypeResponse"
+        previewUploadUrl:
+          type: string
+          description: >
+            Presigned URL the frontend must PUT the preview image bytes to directly (bypassing
+            this API). Valid for 10 minutes, single use.
+
+    CarTypePage:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/CarTypeResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    CreateReservationRequest:
+      type: object
+      required:
+        - carId
+        - startTime
+        - endTime
+      properties:
+        carId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+
+    ReservationResponse:
+      type: object
+      required:
+        - id
+        - carId
+        - startTime
+        - endTime
+      properties:
+        id:
+          type: string
+        carId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+
+    ReservationPage:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    CoveragePoint:
+      type: object
+      required:
+        - label
+        - covered
+      properties:
+        label:
+          type: string
+          minLength: 1
+        covered:
+          type: boolean
+
+    InsuranceRequest:
+      type: object
+      required:
+        - name
+        - dailyPriceAmount
+      properties:
+        name:
+          type: string
+          minLength: 1
+        coveragePoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoveragePoint"
+        dailyPriceAmount:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+        dailyPriceCurrency:
+          type: string
+          default: EUR
+        hasFranchise:
+          type: boolean
+          default: false
+        franchiseAmount:
+          type: number
+          format: double
+          minimum: 0
+
+    InsuranceResponse:
+      type: object
+      required:
+        - id
+        - name
+        - dailyPriceAmount
+        - dailyPriceCurrency
+        - hasFranchise
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        coveragePoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoveragePoint"
+        dailyPriceAmount:
+          type: number
+          format: double
+        dailyPriceCurrency:
+          type: string
+        hasFranchise:
+          type: boolean
+        franchiseAmount:
+          type: number
+          format: double
+
+    InsurancePage:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsuranceResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer

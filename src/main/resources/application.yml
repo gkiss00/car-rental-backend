@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: car-rental-backend
+  mongodb:
+    uri: mongodb+srv://${DB_USERNAME}:${DB_PASSWORD}@car-rental-qa.d4l5ez3.mongodb.net/?appName=car-rental-qa
+    database: car-rental-qa
+
+server:
+  port: 8080
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: 3600000
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+storage:
+  bucket-name: location-voiture-fichiers-qa
+  region: auto
+  endpoint: https://a2c95107b017b5f0743197f1117029f0.r2.cloudflarestorage.com
+  access-key: ${STORAGE_ACCESS_KEY}
+  secret-key: ${STORAGE_SECRET_KEY}
+  public-url: ${STORAGE_PUBLIC_URL:https://pub-30f270c7d18046eca3f7cf890b6caca5.r2.dev}
+
+logging:
+  level:
+    root: DEBUG
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
+    org.mongodb.driver.protocol.command: DEBUG

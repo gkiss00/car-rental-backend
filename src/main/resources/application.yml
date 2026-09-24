@@ -6,7 +6,7 @@ spring:
     database: car-rental-qa
 
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 app:
   jwt:

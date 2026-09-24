@@ -76,6 +76,10 @@ Three roles: `USER` (normal renter), `DEALERSHIP` (car dealership account), `ADM
 - No test sources exist yet (`src/test` is absent), though `spring-boot-starter-test` and `spring-security-test` are already on the test classpath.
 - JWT signing secret/expiry are configurable via `JWT_SECRET` / `JWT_EXPIRATION_MS` env vars (see `application.yml`); the checked-in default secret is dev-only.
 
+## Deployment
+
+Deployed on Render as a Docker web service (`Dockerfile` at the repo root — multi-stage: `eclipse-temurin:25-jdk` + Maven to build the jar, `eclipse-temurin:25-jre` to run it; `render.yaml` defines the service as a Blueprint). Render injects its own `PORT` env var at runtime, which `application.yml`'s `server.port: ${PORT:8080}` reads (falling back to 8080 for local runs where `PORT` isn't set). Secrets (`DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_PUBLIC_URL`) are `sync: false` in `render.yaml`, i.e. set directly in the Render dashboard, not committed. The MongoDB Atlas cluster's Network Access list must allow Render's outbound traffic (Render's IPs aren't static on the free/starter plans, so this generally means allow-listing `0.0.0.0/0` on the Atlas cluster and relying on the DB credentials for access control).
+
 ## Working notes
 
 - The user prefers to run Maven builds themselves rather than have Claude invoke `mvn` — write/update code based on known `openapi-generator`/Spring conventions and let the user compile, reporting fixes if they hit errors, instead of proactively shelling out to `mvn`.

@@ -29,6 +29,5 @@ storage:
 
 logging:
   level:
-    root: DEBUG
-    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
-    org.mongodb.driver.protocol.command: DEBUG
+    org.springframework.data.mongodb.core.MongoTemplate: INFO
+    org.mongodb.driver.protocol.command: INFO
